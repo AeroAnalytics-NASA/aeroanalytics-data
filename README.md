@@ -84,6 +84,3 @@ The script generates a CSV file containing:
 
 ## Support
 For issues or questions, please open a GitHub issue or contact the maintainer.
-
-## License
-[Specify your license here]
