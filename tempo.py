@@ -1,6 +1,14 @@
 """
 TEMPO NO2 Data Extraction to CSV
-Gets ALL available NO2 pixels for North America (no sampling)
+
+This script extracts NO2 data from TEMPO satellite measurements for North America.
+It retrieves all available NO2 pixels without sampling and exports them to CSV format.
+
+Main features:
+- Authenticates with NASA Earthdata
+- Downloads and processes TEMPO NO2 Level-3 data
+- Filters data by geographical bounds and quality flags
+- Exports results to CSV with full spatial resolution
 """
 
 import earthaccess
@@ -12,21 +20,37 @@ from datetime import datetime, timedelta
 
 def get_all_tempo_no2(bbox, datetime_str):
     """
-    Get ALL TEMPO NO2 pixels (no sampling) for a region.
-    
+    Extract all valid TEMPO NO2 pixels for a given region and time.
+
     Parameters
     ----------
     bbox : tuple
-        (min_lon, min_lat, max_lon, max_lat)
+        Bounding box coordinates as (min_lon, min_lat, max_lon, max_lat).
+        Longitude range: -180 to 180
+        Latitude range: -90 to 90
     datetime_str : str
-        UTC datetime "YYYY-MM-DD HH:MM:SS"
-    
+        UTC datetime in format "YYYY-MM-DD HH:MM:SS"
+
     Returns
     -------
-    pd.DataFrame with columns: latitude, longitude, NO2_molec_cm2
+    pandas.DataFrame
+        DataFrame containing extracted NO2 data with columns:
+        - latitude : float
+            Pixel latitude in degrees
+        - longitude : float
+            Pixel longitude in degrees
+        - NO2_molec_cm2 : float
+            NO2 vertical column density in molecules/cm²
+
+    Notes
+    -----
+    - Searches ±3 hours around the target time to ensure data coverage
+    - Only returns pixels that pass quality control (quality flag = 0)
+    - Removes duplicate pixels if there's overlap between granules
+    - Returns empty DataFrame if no valid data found
     """
     
-    print("🔐 Authenticating with NASA Earthdata...")
+    print("Authenticating with NASA Earthdata...")
     try:
         earthaccess.login(persist=True)
     except:
@@ -39,9 +63,9 @@ def get_all_tempo_no2(bbox, datetime_str):
     start_time = (target_dt - timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
     end_time = (target_dt + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
     
-    print(f"🔍 Searching for TEMPO NO2 data...")
-    print(f"   Area: {bbox}")
-    print(f"   Time: {datetime_str} UTC (±3 hours)")
+    print(f"Searching for TEMPO NO2 data...")
+    print(f"Area: {bbox}")
+    print(f"Time: {datetime_str} UTC (±3 hours)")
     
     # Search for NO2 data
     results = earthaccess.search_data(
@@ -52,15 +76,15 @@ def get_all_tempo_no2(bbox, datetime_str):
     )
     
     if not results:
-        print("❌ No TEMPO data found in this time window")
+        print("No TEMPO data found in this time window")
         return pd.DataFrame()
     
-    print(f"✅ Found {len(results)} granule(s)")
+    print(f"Found {len(results)} granule(s)")
     
     all_rows = []
     
     for idx, granule in enumerate(results):
-        print(f"\n📂 Processing granule {idx + 1}/{len(results)}...")
+        print(f"\n Processing granule {idx + 1}/{len(results)}...")
         
         try:
             # Open file directly from cloud
@@ -81,13 +105,13 @@ def get_all_tempo_no2(bbox, datetime_str):
                 lat_vals = ds.variables['latitude'].values
                 lon_vals = ds.variables['longitude'].values
             else:
-                print("   ⚠️ No coordinates found")
+                print("No coordinates found")
                 continue
             
             # Get NO2 data
             var_name = "vertical_column_troposphere"
             if var_name not in ds_product.variables:
-                print(f"   ⚠️ Variable {var_name} not found")
+                print(f"Variable {var_name} not found")
                 continue
             
             # Extract data (first time step)
@@ -108,7 +132,7 @@ def get_all_tempo_no2(bbox, datetime_str):
             lon_mask = (lon_vals >= min_lon) & (lon_vals <= max_lon)
             
             if not np.any(lat_mask) or not np.any(lon_mask):
-                print("   ⚠️ No data in bounding box")
+                print("No data in bounding box")
                 continue
             
             # Apply spatial mask
@@ -129,7 +153,7 @@ def get_all_tempo_no2(bbox, datetime_str):
             print(f"   Valid pixels: {valid_count:,} / {valid_mask.size:,}")
             
             if valid_count == 0:
-                print("   ⚠️ No valid pixels")
+                print("No valid pixels")
                 continue
             
             # Extract valid pixels
@@ -145,14 +169,14 @@ def get_all_tempo_no2(bbox, datetime_str):
             })
             
             all_rows.append(df_granule)
-            print(f"   ✅ Extracted {len(df_granule):,} pixels")
+            print(f"Extracted {len(df_granule):,} pixels")
             
         except Exception as e:
-            print(f"   ❌ Error: {str(e)}")
+            print(f"Error: {str(e)}")
             continue
     
     if not all_rows:
-        print("\n❌ No valid data extracted")
+        print("\n No valid data extracted")
         return pd.DataFrame()
     
     # Combine all granules
@@ -164,9 +188,9 @@ def get_all_tempo_no2(bbox, datetime_str):
     final_count = len(df_final)
     
     if initial_count > final_count:
-        print(f"\n🧹 Removed {initial_count - final_count:,} duplicate pixels")
+        print(f"\n Removed {initial_count - final_count:,} duplicate pixels")
     
-    print(f"\n✅ Total valid NO2 pixels: {final_count:,}")
+    print(f"\n Total valid NO2 pixels: {final_count:,}")
     
     return df_final
 
@@ -176,13 +200,30 @@ def get_all_tempo_no2(bbox, datetime_str):
 # =============================================================================
 
 if __name__ == "__main__":
+    """
+    Main execution block for TEMPO NO2 data extraction.
+    
+    Configures the extraction parameters and runs the process:
+    1. Sets geographical bounds for North America
+    2. Specifies target datetime (UTC)
+    3. Defines output CSV filename
+    4. Calls extraction function
+    5. Saves and summarizes results
+    
+    Notes
+    -----
+    - Best coverage times are 18:00-20:00 UTC (afternoon in North America)
+    - Data available from September 2023 onwards
+    - Output includes data summary and spatial coverage analysis
+    """
+    
     # Configuration
     NORTH_AMERICA_BBOX = (-160, 10, -40, 60)
     
     # Use a date with good TEMPO coverage
     # TEMPO launched August 2023, use dates from Sept 2023 onwards
     # Afternoon UTC (18:00-20:00) typically has best coverage
-    DATETIME = "2025-07-01 19:00:00"  # UTC - 3PM EST, good coverage time
+    DATETIME = "2025-07-11 19:00:00"  # UTC - 3PM EST, good coverage time
     
     # Output file
     OUTPUT_CSV = f"tempo_no2_north_america{DATETIME}.csv"
@@ -208,7 +249,7 @@ if __name__ == "__main__":
         df = df.sort_values(['latitude', 'longitude']).reset_index(drop=True)
         
         df.to_csv(OUTPUT_CSV, index=False)
-        print(f"\n✅ Saved {len(df):,} rows to {OUTPUT_CSV}")
+        print(f"\n Saved {len(df):,} rows to {OUTPUT_CSV}")
         
         print(f"\nFirst 10 rows:")
         print(df.head(10))
@@ -231,8 +272,8 @@ if __name__ == "__main__":
         print(lat_bins.value_counts().sort_index())
         
     else:
-        print("\n❌ No data to save")
-        print("\nTips:")
+        print("\n No data to save")
+        print("\n Tips:")
         print("  • Try a different date/time")
         print("  • TEMPO data available from August 2023 onwards")
         print("  • Best coverage: 18:00-20:00 UTC (afternoon North America)")

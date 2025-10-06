@@ -1,0 +1,31 @@
+# Environment variables
+.env
+
+# Python virtual environment
+venv/
+env/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# VS Code settings
+.vscode/
+
+# Sample and temporary data files
+sample_data/
+*.csv
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
