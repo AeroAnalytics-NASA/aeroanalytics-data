@@ -3,6 +3,35 @@
 ## Overview
 The `tempo.py` script is designed to process and analyze TEMPO (Tropospheric Emissions: Monitoring of Pollution) satellite data. It extracts air quality measurements for various pollutants across North America and calculates Air Quality Index (AQI) values.
 
+## Data Extraction Process
+
+The following diagram illustrates the complete data pipeline architecture:
+
+```mermaid
+graph LR
+    subgraph "Data Sources"
+        A[Earth Access]
+        B[OpenAQ]
+        C[API]
+    end
+    
+    D[Azure Function<br/>Trigger every hour]
+    E[Azure DataFactory<br/>Transformation]
+    F[Data Lake<br/>Storage]
+    G[AeroAnalytics<br/>Web App]
+    H[Azure ML<br/>Machine Learning]
+    
+    A --> D
+    B --> D
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    F --> H
+```
+
+This pipeline demonstrates how data flows from multiple sources (Earth Access, OpenAQ, and other APIs) through an hourly-triggered Azure Function, gets transformed by Azure DataFactory, stored in a Data Lake, and then consumed by both the AeroAnalytics web application and Azure Machine Learning services.
+
 ## Features
 - Extracts NO2, O3, and HCHO data from TEMPO satellite measurements
 - Calculates concentrations in µg/m³
